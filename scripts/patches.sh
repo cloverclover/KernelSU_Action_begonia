@@ -72,13 +72,38 @@ susfs_apply() {
 	cp -v "${kp}/include/linux/"*.h   "${KERNEL_DIR}/include/linux/" 2>/dev/null || true
 
 	# 2. Patch the kernel itself.
-	local kernel_patch="${kp}/50_add_susfs_in_${branch}.patch"
-	[ -f "$kernel_patch" ] || {
-		# Fall back to whatever 50_* patch the branch actually ships.
-		kernel_patch=$(find "$kp" -maxdepth 1 -name '50_add_susfs_in_*.patch' | head -n1)
-	}
+	# local kernel_patch="${kp}/50_add_susfs_in_${branch}.patch"
+	# [ -f "$kernel_patch" ] || {
+	# 	# Fall back to whatever 50_* patch the branch actually ships.
+	# 	kernel_patch=$(find "$kp" -maxdepth 1 -name '50_add_susfs_in_*.patch' | head -n1)
+	# }
+	# [ -n "$kernel_patch" ] && [ -f "$kernel_patch" ] \
+	# 	|| die "no 50_add_susfs_in_*.patch found in ${kp}"
+
+	# ============================================================
+	# SUSFS - 使用 JackA1ltman 的 Non-GKI 补丁集
+	# ============================================================
+	# 2. Patch the kernel itself.
+	# 优先级：本地 patches/<file> > 环境变量 SUSFS_KERNEL_PATCH > susfs4ksu 仓库里的 50_* 补丁
+	local kernel_patch
+	local local_patch="${REPO_ROOT}/patches/susfs_patch_to_${kver}.patch"
+
+	if [ -f "$local_patch" ]; then
+		kernel_patch="$local_patch"
+		info "using local SUSFS patch: ${local_patch#${REPO_ROOT}/}"
+	elif [ -n "${SUSFS_KERNEL_PATCH:-}" ] && [ -f "${SUSFS_KERNEL_PATCH}" ]; then
+		kernel_patch="$SUSFS_KERNEL_PATCH"
+		info "using SUSFS_KERNEL_PATCH: ${kernel_patch}"
+	else
+		kernel_patch="${kp}/50_add_susfs_in_${branch}.patch"
+		[ -f "$kernel_patch" ] || {
+			kernel_patch=$(find "$kp" -maxdepth 1 -name '50_add_susfs_in_*.patch' | head -n1)
+		}
+	fi
+
 	[ -n "$kernel_patch" ] && [ -f "$kernel_patch" ] \
-		|| die "no 50_add_susfs_in_*.patch found in ${kp}"
+		|| die "no SUSFS kernel patch found (looked at ${local_patch}, ${kp}/50_add_susfs_in_*.patch)"
+
 
 	( cd "$KERNEL_DIR" && apply_patch "$kernel_patch" 1 ) \
 		|| die "the SUSFS kernel patch did not apply cleanly.
